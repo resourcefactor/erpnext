@@ -472,15 +472,12 @@ class AccountsController(TransactionBase):
 
 		res = self.get_advance_entries()
 
+		remaining_amount = flt(self.rounded_total or self.grand_total)
+
 		self.set("advances", [])
-		advance_allocated = 0
 		for d in res:
-			if d.against_order:
-				allocated_amount = flt(d.amount)
-			else:
-				amount = self.rounded_total or self.grand_total
-				allocated_amount = min(amount - advance_allocated, d.amount)
-			advance_allocated += flt(allocated_amount)
+			allocated_amount = min(remaining_amount, flt(d.amount)) if d.against_order else 0
+			remaining_amount = max(0, remaining_amount - allocated_amount)
 
 			self.append("advances", {
 				"doctype": self.doctype + " Advance",
