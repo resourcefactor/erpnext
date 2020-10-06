@@ -93,7 +93,9 @@ frappe.query_reports["General Ledger"] = {
 					var party = parties[0];
 					var fieldname = erpnext.utils.get_party_name(party_type) || "name";
 					frappe.db.get_value(party_type, party, fieldname, function(value) {
+						console.log('value[fieldname]', value[fieldname]);
 						frappe.query_report.set_filter_value('party_name', value[fieldname]);
+						console.log('frappe.query_report.get_filter_value("party")', frappe.query_report.get_filter_value('party'));
 					});
 
 					if (party_type === "Customer" || party_type === "Supplier") {
