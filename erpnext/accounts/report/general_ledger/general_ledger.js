@@ -21,7 +21,7 @@ frappe.query_reports["General Ledger"] = {
 			"fieldname":"from_date",
 			"label": __("From Date"),
 			"fieldtype": "Date",
-			"default": frappe.datetime.add_months(frappe.datetime.get_today(), -1),
+			"default": frappe.datetime.add_days(frappe.datetime.get_today(), -1),
 			"reqd": 1,
 			"width": "60px"
 		},
@@ -93,7 +93,9 @@ frappe.query_reports["General Ledger"] = {
 					var party = parties[0];
 					var fieldname = erpnext.utils.get_party_name(party_type) || "name";
 					frappe.db.get_value(party_type, party, fieldname, function(value) {
+						console.log('value[fieldname]', value[fieldname]);
 						frappe.query_report.set_filter_value('party_name', value[fieldname]);
+						console.log('frappe.query_report.get_filter_value("party")', frappe.query_report.get_filter_value('party'));
 					});
 
 					if (party_type === "Customer" || party_type === "Supplier") {
@@ -108,7 +110,7 @@ frappe.query_reports["General Ledger"] = {
 			"fieldname":"party_name",
 			"label": __("Party Name"),
 			"fieldtype": "Data",
-			"hidden": 1
+			"read_only": 1
 		},
 		{
 			"fieldname":"group_by",
