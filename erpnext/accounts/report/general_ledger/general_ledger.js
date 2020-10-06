@@ -21,7 +21,7 @@ frappe.query_reports["General Ledger"] = {
 			"fieldname":"from_date",
 			"label": __("From Date"),
 			"fieldtype": "Date",
-			"default": frappe.datetime.add_months(frappe.datetime.get_today(), -1),
+			"default": frappe.datetime.add_days(frappe.datetime.get_today(), -1),
 			"reqd": 1,
 			"width": "60px"
 		},
@@ -108,7 +108,7 @@ frappe.query_reports["General Ledger"] = {
 			"fieldname":"party_name",
 			"label": __("Party Name"),
 			"fieldtype": "Data",
-			"hidden": 1
+			"read_only": 1
 		},
 		{
 			"fieldname":"group_by",
