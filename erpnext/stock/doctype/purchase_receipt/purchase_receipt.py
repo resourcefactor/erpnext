@@ -155,7 +155,7 @@ class PurchaseReceipt(BuyingController):
 		if flt(self.per_billed) < 100:
 			self.update_billing_status()
 		else:
-			self.status = "Completed"
+			self.db_set("status", "Completed")
 
 
 		# Updating stock ledger should always be called after updating prevdoc status,
@@ -207,6 +207,7 @@ class PurchaseReceipt(BuyingController):
 		from erpnext.accounts.general_ledger import process_gl_map
 
 		stock_rbnb = self.get_company_default("stock_received_but_not_billed")
+		stock_rbnb_currency = get_account_currency(stock_rbnb)
 		landed_cost_entries = get_item_account_wise_additional_cost(self.name)
 		expenses_included_in_valuation = self.get_company_default("expenses_included_in_valuation")
 
@@ -223,6 +224,15 @@ class PurchaseReceipt(BuyingController):
 
 					if not stock_value_diff:
 						continue
+
+					# If PR is sub-contracted and fg item rate is zero
+					# in that case if account for shource and target warehouse are same,
+					# then GL entries should not be posted
+					if flt(stock_value_diff) == flt(d.rm_supp_cost) \
+						and warehouse_account.get(self.supplier_warehouse) \
+						and warehouse_account[d.warehouse]["account"] == warehouse_account[self.supplier_warehouse]["account"]:
+							continue
+
 					gl_entries.append(self.get_gl_dict({
 						"account": warehouse_account[d.warehouse]["account"],
 						"against": stock_rbnb,
@@ -232,16 +242,16 @@ class PurchaseReceipt(BuyingController):
 					}, warehouse_account[d.warehouse]["account_currency"], item=d))
 
 					# stock received but not billed
-					stock_rbnb_currency = get_account_currency(stock_rbnb)
-					gl_entries.append(self.get_gl_dict({
-						"account": stock_rbnb,
-						"against": warehouse_account[d.warehouse]["account"],
-						"cost_center": d.cost_center,
-						"remarks": self.get("remarks") or _("Accounting Entry for Stock"),
-						"credit": flt(d.base_net_amount, d.precision("base_net_amount")),
-						"credit_in_account_currency": flt(d.base_net_amount, d.precision("base_net_amount")) \
-							if stock_rbnb_currency==self.company_currency else flt(d.net_amount, d.precision("net_amount"))
-					}, stock_rbnb_currency, item=d))
+					if d.base_net_amount:
+						gl_entries.append(self.get_gl_dict({
+							"account": stock_rbnb,
+							"against": warehouse_account[d.warehouse]["account"],
+							"cost_center": d.cost_center,
+							"remarks": self.get("remarks") or _("Accounting Entry for Stock"),
+							"credit": flt(d.base_net_amount, d.precision("base_net_amount")),
+							"credit_in_account_currency": flt(d.base_net_amount, d.precision("base_net_amount")) \
+								if stock_rbnb_currency==self.company_currency else flt(d.net_amount, d.precision("net_amount"))
+						}, stock_rbnb_currency, item=d))
 
 					negative_expense_to_be_booked += flt(d.item_tax_amount)
 
@@ -278,7 +288,8 @@ class PurchaseReceipt(BuyingController):
 						if self.is_return or flt(d.item_tax_amount):
 							loss_account = expenses_included_in_valuation
 						else:
-							loss_account = stock_rbnb
+							cogs_account = self.get_company_default("default_expense_account")
+							loss_account = cogs_account
 
 						gl_entries.append(self.get_gl_dict({
 							"account": loss_account,
@@ -489,6 +500,8 @@ def update_billed_amount_based_on_po(po_detail, update_modified=True):
 @frappe.whitelist()
 def make_purchase_invoice(source_name, target_doc=None):
 	from frappe.model.mapper import get_mapped_doc
+	from erpnext.accounts.party import get_payment_terms_template
+
 	doc = frappe.get_doc('Purchase Receipt', source_name)
 	returned_qty_map = get_returned_qty_map(source_name)
 	invoiced_qty_map = get_invoiced_qty_map(source_name)
@@ -499,6 +512,7 @@ def make_purchase_invoice(source_name, target_doc=None):
 
 		doc = frappe.get_doc(target)
 		doc.ignore_pricing_rule = 1
+		doc.payment_terms_template = get_payment_terms_template(source.supplier, "Supplier", source.company)
 		doc.run_method("onload")
 		doc.run_method("set_missing_values")
 		doc.run_method("calculate_taxes_and_totals")
@@ -525,7 +539,8 @@ def make_purchase_invoice(source_name, target_doc=None):
 			"doctype": "Purchase Invoice",
 			"field_map": {
 				"supplier_warehouse":"supplier_warehouse",
-				"is_return": "is_return"
+				"is_return": "is_return",
+				"bill_date": "bill_date"
 			},
 			"validation": {
 				"docstatus": ["=", 1],
